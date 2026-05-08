@@ -2,8 +2,8 @@
   {
     "id": "test-tx-1",
     "type": "income",
-    "amount": 3000,
-    "description": "שכר דירה",
+    "amount": 3500,
+    "description": "שכר דירה (מעודכן)",
     "date": "2026-05-08",
     "couple": "itay_yasmin",
     "createdAt": "2026-05-08T21:30:00Z"
