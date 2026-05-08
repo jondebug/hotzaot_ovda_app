@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f172a" />
+  <title>הקרן המשפחתית</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { heebo: ['Heebo', 'system-ui', 'sans-serif'] }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    html, body { font-family: 'Heebo', system-ui, -apple-system, sans-serif; }
+    [x-cloak] { display: none !important; }
+    .tabular-nums { font-variant-numeric: tabular-nums; }
+    /* nicer native date input in RTL */
+    input[type="date"]::-webkit-calendar-picker-indicator { margin-inline-start: auto; }
+    /* hide spinner on number inputs */
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type=number] { -moz-appearance: textfield; }
+  </style>
+
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body class="font-heebo bg-slate-50 text-slate-900 min-h-screen antialiased" x-data="app()" x-cloak>
+
+  <div class="max-w-3xl mx-auto px-4 py-6 sm:px-6 sm:py-8">
+
+    <!-- ───── Header ───── -->
+    <header class="flex items-start justify-between gap-3 mb-6">
+      <div class="min-w-0">
+        <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">הקרן המשפחתית</h1>
+        <p class="text-sm text-slate-500 mt-0.5">ניהול הוצאות והכנסות משותפות לשלושת הזוגות</p>
+      </div>
+      <div class="flex items-center gap-1 shrink-0">
+        <button @click="exportJSON()" title="ייצוא נתונים"
+                class="w-10 h-10 grid place-items-center rounded-xl ring-1 ring-slate-200 bg-white hover:bg-slate-100 text-slate-600 transition" aria-label="ייצוא">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        </button>
+        <label title="ייבוא נתונים"
+               class="w-10 h-10 grid place-items-center rounded-xl ring-1 ring-slate-200 bg-white hover:bg-slate-100 text-slate-600 transition cursor-pointer" aria-label="ייבוא">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <input type="file" accept="application/json" class="hidden" @change="importJSON($event)" />
+        </label>
+        <button @click="showClearConfirm = true; clearConfirmText = ''" title="מחיקת כל הנתונים"
+                class="w-10 h-10 grid place-items-center rounded-xl ring-1 ring-rose-200 bg-white hover:bg-rose-50 text-rose-600 transition" aria-label="מחיקת כל הנתונים">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- ───── Dashboard ───── -->
+    <section class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+      <div class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-4">
+        <p class="text-xs font-medium uppercase tracking-wide text-slate-500">סך הרווח המשותף</p>
+        <p class="text-2xl sm:text-3xl font-extrabold tabular-nums mt-1"
+           :class="totalProfit > 0.005 ? 'text-emerald-600' : totalProfit < -0.005 ? 'text-rose-600' : 'text-slate-900'"
+           x-text="formatMoney(totalProfit)"></p>
+        <p class="text-xs text-slate-500 mt-1">חלק לכל זוג: <span class="font-semibold tabular-nums" x-text="formatMoney(targetPerCouple)"></span></p>
+      </div>
+      <div class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-4">
+        <p class="text-xs font-medium uppercase tracking-wide text-slate-500">סך ההכנסות</p>
+        <p class="text-2xl sm:text-3xl font-extrabold tabular-nums mt-1 text-emerald-700" x-text="formatMoney(totalIncome)"></p>
+      </div>
+      <div class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-4">
+        <p class="text-xs font-medium uppercase tracking-wide text-slate-500">סך ההוצאות</p>
+        <p class="text-2xl sm:text-3xl font-extrabold tabular-nums mt-1 text-rose-700" x-text="formatMoney(totalExpenses)"></p>
+      </div>
+    </section>
+
+    <!-- ───── Balance Board ───── -->
+    <section class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-4 sm:p-5 mb-6">
+      <h2 class="text-lg font-bold mb-4">מאזן הזוגות</h2>
+      <div class="space-y-3">
+        <template x-for="c in couples" :key="c.id">
+          <div class="flex items-center gap-3 p-3 rounded-xl bg-slate-50 ring-1 ring-slate-200/70">
+            <div class="w-11 h-11 rounded-full grid place-items-center text-sm font-bold shrink-0"
+                 :style="`background:${c.hex}1f;color:${c.hex}`">
+              <span x-text="c.initials"></span>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="font-semibold truncate" x-text="c.name"></p>
+              <p class="text-xs text-slate-500 mt-0.5">
+                <span>הכנסות </span><span class="tabular-nums" x-text="formatMoney(incomeFor(c.id))"></span>
+                <span class="mx-1 text-slate-300">·</span>
+                <span>הוצאות </span><span class="tabular-nums" x-text="formatMoney(expensesFor(c.id))"></span>
+              </p>
+            </div>
+            <div class="text-end shrink-0">
+              <p class="text-lg sm:text-xl font-extrabold tabular-nums leading-none"
+                 :class="balanceFor(c.id) > 0.005 ? 'text-emerald-600' : balanceFor(c.id) < -0.005 ? 'text-rose-600' : 'text-slate-500'"
+                 x-text="formatMoney(Math.abs(balanceFor(c.id)))"></p>
+              <p class="text-[11px] font-medium mt-1 px-2 py-0.5 inline-block rounded-full"
+                 :class="balanceFor(c.id) > 0.005 ? 'bg-emerald-100 text-emerald-700' : balanceFor(c.id) < -0.005 ? 'bg-rose-100 text-rose-700' : 'bg-slate-200 text-slate-600'"
+                 x-text="balanceFor(c.id) > 0.005 ? 'מקבל/ת' : balanceFor(c.id) < -0.005 ? 'חייב/ת' : 'מאוזן/ת'"></p>
+            </div>
+          </div>
+        </template>
+      </div>
+    </section>
+
+    <!-- ───── Settle-up Suggestions ───── -->
+    <section class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-4 sm:p-5 mb-6">
+      <h2 class="text-lg font-bold mb-3">הצעות התחשבנות</h2>
+      <template x-if="settlements.length === 0">
+        <p class="text-sm text-slate-500 py-2">הכל מאוזן 🎉</p>
+      </template>
+      <ul class="space-y-2">
+        <template x-for="(s, i) in settlements" :key="i">
+          <li class="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 ring-1 ring-slate-200/70">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="w-8 h-8 rounded-full grid place-items-center text-xs font-bold shrink-0"
+                    :style="`background:${coupleById(s.from).hex}1f;color:${coupleById(s.from).hex}`"
+                    x-text="coupleById(s.from).initials"></span>
+              <span class="font-semibold truncate" x-text="coupleById(s.from).name"></span>
+              <span class="text-slate-400 text-sm whitespace-nowrap">משלם/ת ל&#8209;</span>
+              <span class="font-semibold truncate" x-text="coupleById(s.to).name"></span>
+              <span class="w-8 h-8 rounded-full grid place-items-center text-xs font-bold shrink-0"
+                    :style="`background:${coupleById(s.to).hex}1f;color:${coupleById(s.to).hex}`"
+                    x-text="coupleById(s.to).initials"></span>
+            </div>
+            <span class="font-extrabold tabular-nums text-slate-900 shrink-0" x-text="formatMoney(s.amount)"></span>
+          </li>
+        </template>
+      </ul>
+    </section>
+
+    <!-- ───── Add / Edit Transaction ───── -->
+    <section id="entry-form" class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-4 sm:p-5 mb-6">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-bold" x-text="editingId ? 'עריכת תנועה' : 'הוספת תנועה'"></h2>
+        <button x-show="editingId" @click="cancelEdit()" type="button"
+                class="text-sm text-slate-500 hover:text-slate-900">ביטול עריכה</button>
+      </div>
+
+      <!-- Type segmented control -->
+      <div class="grid grid-cols-3 gap-1 p-1 rounded-xl bg-slate-100 mb-4" role="tablist" aria-label="סוג תנועה">
+        <template x-for="opt in [{v:'income',l:'הכנסה'},{v:'expense',l:'הוצאה'},{v:'transfer',l:'העברה'}]" :key="opt.v">
+          <button type="button" role="tab"
+                  @click="form.type = opt.v; errors = {}"
+                  :aria-selected="form.type === opt.v"
+                  :class="form.type === opt.v
+                          ? 'bg-white text-slate-900 shadow-sm font-semibold'
+                          : 'text-slate-600 hover:text-slate-900'"
+                  class="py-2.5 rounded-lg text-sm transition" x-text="opt.l"></button>
+        </template>
+      </div>
+
+      <form @submit.prevent="submitForm()" class="space-y-3">
+        <!-- Amount -->
+        <div>
+          <label class="text-sm font-medium text-slate-700">סכום (₪)</label>
+          <input type="number" inputmode="decimal" step="0.01" min="0"
+                 x-model="form.amount" placeholder="0.00"
+                 class="mt-1 w-full min-h-12 px-3 rounded-xl ring-1 ring-slate-300 focus:ring-2 focus:ring-sky-400 focus:outline-none tabular-nums text-lg" />
+          <p x-show="errors.amount" class="text-xs text-rose-600 mt-1" x-text="errors.amount"></p>
+        </div>
+
+        <!-- Description -->
+        <div>
+          <label class="text-sm font-medium text-slate-700">
+            תיאור
+            <span x-show="form.type === 'transfer'" class="text-slate-400 font-normal">(לא חובה)</span>
+          </label>
+          <input type="text" x-model="form.description"
+                 :placeholder="form.type === 'transfer' ? 'תיאור (לא חובה)' : 'למשל: שכר דירה'"
+                 class="mt-1 w-full min-h-12 px-3 rounded-xl ring-1 ring-slate-300 focus:ring-2 focus:ring-sky-400 focus:outline-none" />
+          <p x-show="errors.description" class="text-xs text-rose-600 mt-1" x-text="errors.description"></p>
+        </div>
+
+        <!-- Date -->
+        <div>
+          <label class="text-sm font-medium text-slate-700">תאריך</label>
+          <input type="date" x-model="form.date"
+                 class="mt-1 w-full min-h-12 px-3 rounded-xl ring-1 ring-slate-300 focus:ring-2 focus:ring-sky-400 focus:outline-none bg-white" />
+          <p x-show="errors.date" class="text-xs text-rose-600 mt-1" x-text="errors.date"></p>
+        </div>
+
+        <!-- Couple (income/expense) -->
+        <div x-show="form.type === 'income' || form.type === 'expense'">
+          <label class="text-sm font-medium text-slate-700"
+                 x-text="form.type === 'income' ? 'מי קיבל/ה?' : 'מי שילם/ה?'"></label>
+          <select x-model="form.couple"
+                  class="mt-1 w-full min-h-12 px-3 rounded-xl ring-1 ring-slate-300 focus:ring-2 focus:ring-sky-400 focus:outline-none bg-white">
+            <option value="">בחר/י זוג…</option>
+            <template x-for="c in couples" :key="c.id">
+              <option :value="c.id" x-text="c.name"></option>
+            </template>
+          </select>
+          <p x-show="errors.couple" class="text-xs text-rose-600 mt-1" x-text="errors.couple"></p>
+        </div>
+
+        <!-- Transfer fields -->
+        <div x-show="form.type === 'transfer'" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="text-sm font-medium text-slate-700">מאת (משלם/ת)</label>
+            <select x-model="form.fromCouple"
+                    class="mt-1 w-full min-h-12 px-3 rounded-xl ring-1 ring-slate-300 focus:ring-2 focus:ring-sky-400 focus:outline-none bg-white">
+              <option value="">בחר/י זוג…</option>
+              <template x-for="c in couples" :key="c.id">
+                <option :value="c.id" x-text="c.name"></option>
+              </template>
+            </select>
+          </div>
+          <div>
+            <label class="text-sm font-medium text-slate-700">אל (מקבל/ת)</label>
+            <select x-model="form.toCouple"
+                    class="mt-1 w-full min-h-12 px-3 rounded-xl ring-1 ring-slate-300 focus:ring-2 focus:ring-sky-400 focus:outline-none bg-white">
+              <option value="">בחר/י זוג…</option>
+              <template x-for="c in couples" :key="c.id">
+                <option :value="c.id" x-text="c.name"></option>
+              </template>
+            </select>
+          </div>
+          <p x-show="errors.transfer" class="text-xs text-rose-600 mt-1 sm:col-span-2" x-text="errors.transfer"></p>
+        </div>
+
+        <div class="pt-2">
+          <button type="submit"
+                  class="w-full min-h-12 rounded-xl bg-slate-900 text-white font-bold text-base hover:bg-slate-800 active:bg-black transition shadow-sm"
+                  x-text="editingId ? 'עדכן תנועה' : 'הוסף תנועה'"></button>
+        </div>
+      </form>
+    </section>
+
+    <!-- ───── History ───── -->
+    <section class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-4 sm:p-5 mb-6">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-lg font-bold">היסטוריה</h2>
+        <span class="text-xs text-slate-500" x-text="`${filteredTransactions.length} מתוך ${transactions.length}`"></span>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4">
+        <input type="search" placeholder="חיפוש בתיאור…" x-model="filter.text"
+               class="min-h-11 px-3 rounded-xl ring-1 ring-slate-300 focus:ring-2 focus:ring-sky-400 focus:outline-none" />
+        <select x-model="filter.type"
+                class="min-h-11 px-3 rounded-xl ring-1 ring-slate-300 focus:ring-2 focus:ring-sky-400 focus:outline-none bg-white">
+          <option value="all">כל הסוגים</option>
+          <option value="income">הכנסות</option>
+          <option value="expense">הוצאות</option>
+          <option value="transfer">העברות</option>
+        </select>
+        <select x-model="filter.couple"
+                class="min-h-11 px-3 rounded-xl ring-1 ring-slate-300 focus:ring-2 focus:ring-sky-400 focus:outline-none bg-white">
+          <option value="all">כל הזוגות</option>
+          <template x-for="c in couples" :key="c.id">
+            <option :value="c.id" x-text="c.name"></option>
+          </template>
+        </select>
+      </div>
+
+      <template x-if="transactions.length === 0">
+        <div class="text-center py-10">
+          <p class="text-slate-500">אין תנועות עדיין.</p>
+          <p class="text-sm text-slate-400 mt-1">הוסיפו תנועה כדי להתחיל.</p>
+        </div>
+      </template>
+
+      <template x-if="transactions.length > 0 && filteredTransactions.length === 0">
+        <p class="text-sm text-slate-500 text-center py-6">אין תנועות תואמות לסינון.</p>
+      </template>
+
+      <ul class="divide-y divide-slate-100">
+        <template x-for="t in filteredTransactions" :key="t.id">
+          <li class="py-3 flex items-center gap-3">
+            <!-- Type icon -->
+            <div class="w-10 h-10 rounded-full grid place-items-center text-base font-bold shrink-0"
+                 :class="t.type==='income' ? 'bg-emerald-50 text-emerald-700'
+                         : t.type==='expense' ? 'bg-rose-50 text-rose-700'
+                         : 'bg-slate-100 text-slate-700'">
+              <span x-text="t.type==='income' ? '+' : t.type==='expense' ? '−' : '⇄'"></span>
+            </div>
+
+            <div class="flex-1 min-w-0">
+              <p class="font-medium truncate"
+                 x-text="t.description || (t.type==='transfer' ? 'העברה' : (t.type==='income' ? 'הכנסה' : 'הוצאה'))"></p>
+              <p class="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                <span x-text="formatDate(t.date)"></span>
+                <span class="text-slate-300">·</span>
+                <template x-if="t.type !== 'transfer'">
+                  <span class="inline-flex items-center gap-1">
+                    <span class="w-2 h-2 rounded-full" :style="`background:${coupleById(t.couple)?.hex || '#cbd5e1'}`"></span>
+                    <span x-text="coupleById(t.couple)?.name || '—'"></span>
+                  </span>
+                </template>
+                <template x-if="t.type === 'transfer'">
+                  <span class="inline-flex items-center gap-1">
+                    <span x-text="coupleById(t.fromCouple)?.name || '—'"></span>
+                    <span class="text-slate-400">→</span>
+                    <span x-text="coupleById(t.toCouple)?.name || '—'"></span>
+                  </span>
+                </template>
+              </p>
+            </div>
+
+            <span class="font-bold tabular-nums shrink-0"
+                  :class="t.type==='income' ? 'text-emerald-700'
+                          : t.type==='expense' ? 'text-rose-700'
+                          : 'text-slate-700'"
+                  x-text="(t.type==='expense' ? '−' : t.type==='income' ? '+' : '') + formatMoney(t.amount)"></span>
+
+            <div class="flex items-center gap-0.5 shrink-0">
+              <button @click="startEdit(t)" title="עריכה" aria-label="עריכה"
+                      class="w-9 h-9 grid place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+              </button>
+              <button @click="deleteTransaction(t.id)" title="מחיקה" aria-label="מחיקה"
+                      class="w-9 h-9 grid place-items-center rounded-lg text-rose-600 hover:bg-rose-50">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+              </button>
+            </div>
+          </li>
+        </template>
+      </ul>
+    </section>
+
+    <footer class="text-center text-xs text-slate-400 py-4">
+      <p>הקרן המשפחתית · גרסה 1</p>
+    </footer>
+  </div>
+
+  <!-- ───── Clear-all confirmation modal ───── -->
+  <div x-show="showClearConfirm" x-cloak
+       class="fixed inset-0 bg-slate-900/60 grid place-items-center z-50 p-4"
+       @click.self="showClearConfirm = false; clearConfirmText = ''"
+       @keydown.escape.window="showClearConfirm = false; clearConfirmText = ''"
+       x-transition.opacity>
+    <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-5"
+         x-transition.scale.origin.center>
+      <h3 class="text-lg font-bold text-rose-600 mb-2">מחיקת כל הנתונים</h3>
+      <p class="text-sm text-slate-700 mb-4 leading-relaxed">
+        פעולה זו תמחק לצמיתות את כל התנועות מהאחסון המקומי, ולא ניתן לבטלה.<br/>
+        כדי לאשר, הקלד/י <span class="font-bold text-rose-600">מחק</span> בשדה הבא:
+      </p>
+      <input type="text" x-model="clearConfirmText" placeholder="מחק"
+             @keydown.enter="clearAll()"
+             class="w-full min-h-11 px-3 rounded-xl ring-1 ring-slate-300 focus:ring-2 focus:ring-rose-400 focus:outline-none" />
+      <div class="flex gap-2 mt-4">
+        <button type="button" @click="showClearConfirm = false; clearConfirmText = ''"
+                class="flex-1 min-h-11 rounded-xl ring-1 ring-slate-300 text-slate-700 hover:bg-slate-100 font-medium">ביטול</button>
+        <button type="button" @click="clearAll()" :disabled="clearConfirmText !== 'מחק'"
+                class="flex-1 min-h-11 rounded-xl bg-rose-600 text-white font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-rose-700">מחק הכל</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'familyFund.v1';
+
+    const COUPLES = [
+      { id: 'itay_yasmin',  name: 'איתי ויסמין',   hex: '#0ea5e9', initials: 'אי' }, // soft blue
+      { id: 'nir_ofri',     name: 'ניר ואופרי',    hex: '#f59e0b', initials: 'נא' }, // warm amber
+      { id: 'hila_yonatan', name: 'הילה ויונתן',  hex: '#10b981', initials: 'הי' }, // sage green
+    ];
+
+    const fmtILS = new Intl.NumberFormat('he-IL', {
+      style: 'currency', currency: 'ILS', maximumFractionDigits: 2, minimumFractionDigits: 0,
+    });
+    const fmtDate = new Intl.DateTimeFormat('he-IL', { year: 'numeric', month: 'short', day: 'numeric' });
+
+    function todayISO() { return new Date().toISOString().slice(0, 10); }
+
+    function emptyForm() {
+      return {
+        type: 'income',
+        amount: '',
+        description: '',
+        date: todayISO(),
+        couple: '',
+        fromCouple: '',
+        toCouple: '',
+      };
+    }
+
+    function newId() {
+      if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+      return 't_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+    }
+
+    function app() {
+      return {
+        couples: COUPLES,
+        transactions: [],
+        form: emptyForm(),
+        editingId: null,
+        errors: {},
+        filter: { text: '', type: 'all', couple: 'all' },
+        showClearConfirm: false,
+        clearConfirmText: '',
+
+        init() {
+          try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed)) {
+                this.transactions = parsed.filter(t => t && typeof t.amount === 'number' && t.type);
+              }
+            }
+          } catch (e) {
+            console.warn('Could not load saved data:', e);
+          }
+        },
+
+        save() {
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(this.transactions));
+          } catch (e) {
+            console.error('Save failed:', e);
+            alert('השמירה נכשלה — ייתכן שאחסון הדפדפן מלא.');
+          }
+        },
+
+        formatMoney(n) {
+          const v = Number.isFinite(n) ? n : 0;
+          return fmtILS.format(v);
+        },
+
+        formatDate(iso) {
+          if (!iso) return '';
+          const d = new Date(iso + 'T00:00:00');
+          if (Number.isNaN(d.getTime())) return iso;
+          return fmtDate.format(d);
+        },
+
+        coupleById(id) { return this.couples.find(c => c.id === id); },
+
+        // ── Aggregates ──
+        get totalIncome()    { return this.transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0); },
+        get totalExpenses()  { return this.transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0); },
+        get totalProfit()    { return this.totalIncome - this.totalExpenses; },
+        get targetPerCouple(){ return this.totalProfit / 3; },
+
+        incomeFor(id)            { return this.transactions.filter(t => t.type === 'income'   && t.couple === id).reduce((s, t) => s + t.amount, 0); },
+        expensesFor(id)          { return this.transactions.filter(t => t.type === 'expense'  && t.couple === id).reduce((s, t) => s + t.amount, 0); },
+        transfersPaidBy(id)      { return this.transactions.filter(t => t.type === 'transfer' && t.fromCouple === id).reduce((s, t) => s + t.amount, 0); },
+        transfersReceivedBy(id)  { return this.transactions.filter(t => t.type === 'transfer' && t.toCouple === id).reduce((s, t) => s + t.amount, 0); },
+
+        // balance(c) = target − net_contribution + (transfers_paid − transfers_received)
+        // sign: positive ⇒ owed by pool; negative ⇒ owes pool
+        balanceFor(id) {
+          const net = this.incomeFor(id) - this.expensesFor(id);
+          const tDelta = this.transfersPaidBy(id) - this.transfersReceivedBy(id);
+          return this.targetPerCouple - net + tDelta;
+        },
+
+        get balances() {
+          return this.couples.map(c => ({ id: c.id, value: this.balanceFor(c.id) }));
+        },
+
+        // greedy settle-up: most-negative pays most-positive
+        get settlements() {
+          const eps = 0.01;
+          const debtors   = this.balances.filter(b => b.value < -eps).map(b => ({ ...b }));
+          const creditors = this.balances.filter(b => b.value >  eps).map(b => ({ ...b }));
+          debtors.sort((a, b) => a.value - b.value);
+          creditors.sort((a, b) => b.value - a.value);
+          const out = [];
+          let i = 0, j = 0;
+          while (i < debtors.length && j < creditors.length) {
+            const pay = Math.min(-debtors[i].value, creditors[j].value);
+            out.push({
+              from: debtors[i].id,
+              to: creditors[j].id,
+              amount: Math.round(pay * 100) / 100,
+            });
+            debtors[i].value   += pay;
+            creditors[j].value -= pay;
+            if (Math.abs(debtors[i].value)   < eps) i++;
+            if (Math.abs(creditors[j].value) < eps) j++;
+          }
+          return out;
+        },
+
+        get filteredTransactions() {
+          const q = this.filter.text.toLowerCase().trim();
+          const f = this.filter;
+          return this.transactions
+            .filter(t => f.type === 'all' || t.type === f.type)
+            .filter(t => f.couple === 'all'
+                          || t.couple === f.couple
+                          || t.fromCouple === f.couple
+                          || t.toCouple === f.couple)
+            .filter(t => !q || (t.description || '').toLowerCase().includes(q))
+            .slice()
+            .sort((a, b) => {
+              const d = (b.date || '').localeCompare(a.date || '');
+              if (d !== 0) return d;
+              return (b.createdAt || '').localeCompare(a.createdAt || '');
+            });
+        },
+
+        // ── Form handling ──
+        validate() {
+          const e = {};
+          const amtRaw = String(this.form.amount).trim();
+          const amt = Number(amtRaw);
+          if (!amtRaw) e.amount = 'יש להזין סכום';
+          else if (Number.isNaN(amt)) e.amount = 'סכום לא תקין';
+          else if (amt <= 0) e.amount = 'הסכום חייב להיות גדול מאפס';
+
+          if (!this.form.date) e.date = 'יש לבחור תאריך';
+
+          if (this.form.type === 'income' || this.form.type === 'expense') {
+            if (!this.form.description.trim()) e.description = 'יש להזין תיאור';
+            if (!this.form.couple) e.couple = 'יש לבחור זוג';
+          } else if (this.form.type === 'transfer') {
+            if (!this.form.fromCouple || !this.form.toCouple) {
+              e.transfer = 'יש לבחור זוג שולח וזוג מקבל';
+            } else if (this.form.fromCouple === this.form.toCouple) {
+              e.transfer = 'הזוג השולח והמקבל חייבים להיות שונים';
+            }
+          }
+          this.errors = e;
+          return Object.keys(e).length === 0;
+        },
+
+        submitForm() {
+          if (!this.validate()) return;
+          const amt = Math.round(Number(this.form.amount) * 100) / 100;
+          const base = {
+            type: this.form.type,
+            amount: amt,
+            description: this.form.description.trim(),
+            date: this.form.date,
+          };
+          if (this.form.type === 'transfer') {
+            base.fromCouple = this.form.fromCouple;
+            base.toCouple = this.form.toCouple;
+          } else {
+            base.couple = this.form.couple;
+          }
+
+          if (this.editingId) {
+            this.transactions = this.transactions.map(t =>
+              t.id === this.editingId ? { ...t, ...base } : t
+            );
+            this.editingId = null;
+          } else {
+            this.transactions = [...this.transactions, {
+              ...base,
+              id: newId(),
+              createdAt: new Date().toISOString(),
+            }];
+          }
+          this.form = emptyForm();
+          this.errors = {};
+          this.save();
+        },
+
+        startEdit(t) {
+          this.editingId = t.id;
+          this.form = {
+            type: t.type,
+            amount: String(t.amount),
+            description: t.description || '',
+            date: t.date,
+            couple: t.couple || '',
+            fromCouple: t.fromCouple || '',
+            toCouple: t.toCouple || '',
+          };
+          this.errors = {};
+          this.$nextTick(() => {
+            document.getElementById('entry-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          });
+        },
+
+        cancelEdit() {
+          this.editingId = null;
+          this.form = emptyForm();
+          this.errors = {};
+        },
+
+        deleteTransaction(id) {
+          if (!confirm('למחוק את התנועה הזו? פעולה זו תעדכן את כל המאזנים.')) return;
+          this.transactions = this.transactions.filter(t => t.id !== id);
+          if (this.editingId === id) this.cancelEdit();
+          this.save();
+        },
+
+        exportJSON() {
+          const data = {
+            version: 1,
+            exportedAt: new Date().toISOString(),
+            transactions: this.transactions,
+          };
+          const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `family-fund-${todayISO()}.json`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        },
+
+        importJSON(event) {
+          const file = event.target.files?.[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = () => {
+            try {
+              const parsed = JSON.parse(reader.result);
+              const arr = Array.isArray(parsed)
+                ? parsed
+                : (Array.isArray(parsed.transactions) ? parsed.transactions : null);
+              if (!arr) throw new Error('format');
+              const cleaned = arr.filter(t => t && typeof t.amount === 'number' && t.type);
+              if (!confirm(`לייבא ${cleaned.length} תנועות? פעולה זו תחליף את כל הנתונים הקיימים.`)) return;
+              this.transactions = cleaned;
+              this.save();
+              alert('הייבוא הושלם בהצלחה.');
+            } catch (e) {
+              alert('הקובץ אינו תקין.');
+            } finally {
+              event.target.value = '';
+            }
+          };
+          reader.readAsText(file);
+        },
+
+        clearAll() {
+          if (this.clearConfirmText !== 'מחק') return;
+          this.transactions = [];
+          try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+          this.showClearConfirm = false;
+          this.clearConfirmText = '';
+          this.cancelEdit();
+        },
+      };
+    }
+  </script>
+</body>
+</html>
