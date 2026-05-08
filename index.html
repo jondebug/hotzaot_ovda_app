@@ -46,6 +46,16 @@
         <p class="text-sm text-slate-500 mt-0.5">ניהול הוצאות והכנסות משותפות לשלושת הזוגות</p>
       </div>
       <div class="flex items-center gap-1 shrink-0">
+        <button @click="manualSync()" :title="syncTitle"
+                class="h-10 px-2.5 rounded-xl ring-1 bg-white text-xs font-medium flex items-center gap-1.5 transition"
+                :class="syncBadgeClass">
+          <span class="w-2 h-2 rounded-full" :class="syncDotClass"></span>
+          <span class="hidden sm:inline" x-text="syncStatusLabel"></span>
+        </button>
+        <button @click="showSettings = true" title="הגדרות"
+                class="w-10 h-10 grid place-items-center rounded-xl ring-1 ring-slate-200 bg-white hover:bg-slate-100 text-slate-600 transition" aria-label="הגדרות">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
         <button @click="exportJSON()" title="ייצוא נתונים"
                 class="w-10 h-10 grid place-items-center rounded-xl ring-1 ring-slate-200 bg-white hover:bg-slate-100 text-slate-600 transition" aria-label="ייצוא">
           <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -357,8 +367,82 @@
     </div>
   </div>
 
+  <!-- ───── Token-setup modal ───── -->
+  <div x-show="showTokenSetup" x-cloak
+       class="fixed inset-0 bg-slate-900/60 grid place-items-center z-50 p-4"
+       @keydown.escape.window="skipTokenSetup()"
+       x-transition.opacity>
+    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5"
+         x-transition.scale.origin.center>
+      <h3 class="text-lg font-bold mb-2">סנכרון משפחתי</h3>
+      <p class="text-sm text-slate-700 mb-3 leading-relaxed">
+        האפליקציה מסנכרנת את כל התנועות בענן באמצעות GitHub כך שכל בני המשפחה רואים את אותם הנתונים בכל מכשיר.
+        להתחברות הדביקו <span class="font-semibold">Personal Access Token</span> בעל הרשאת Contents על המאגר.
+        הטוקן נשמר רק במכשיר הזה ולא נשלח לשום מקום אחר חוץ מ‑GitHub.
+      </p>
+      <details class="text-xs text-slate-600 mb-3 bg-slate-50 rounded-lg p-3">
+        <summary class="cursor-pointer font-medium">איך מייצרים טוקן? (לראש המשפחה)</summary>
+        <ol class="list-decimal pe-5 mt-2 space-y-1">
+          <li>היכנסו ל-<a class="underline text-sky-700" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">GitHub Settings → Personal Access Tokens (Fine-grained)</a></li>
+          <li>Repository access → Only select repositories → <code dir="ltr">jondebug/hotzaot_ovda_app</code></li>
+          <li>Repository permissions → <code>Contents</code> → Read and write</li>
+          <li>שמרו והעתיקו את הטוקן (מתחיל ב‑<code dir="ltr">github_pat_</code>)</li>
+          <li>שתפו עם בני המשפחה דרך ערוץ פרטי</li>
+        </ol>
+      </details>
+      <input type="password" x-model="tokenInput" placeholder="github_pat_..." dir="ltr"
+             autocomplete="off" spellcheck="false"
+             @keydown.enter="submitTokenSetup()"
+             class="w-full min-h-11 px-3 rounded-xl ring-1 ring-slate-300 focus:ring-2 focus:ring-sky-400 focus:outline-none font-mono text-sm" />
+      <p x-show="tokenInputError" class="text-xs text-rose-600 mt-1" x-text="tokenInputError"></p>
+      <div class="flex gap-2 mt-4">
+        <button type="button" @click="skipTokenSetup()"
+                class="flex-1 min-h-11 rounded-xl ring-1 ring-slate-300 text-slate-700 hover:bg-slate-100 font-medium">דלג (מצב מקומי)</button>
+        <button type="button" @click="submitTokenSetup()" :disabled="syncState === 'loading'"
+                class="flex-1 min-h-11 rounded-xl bg-slate-900 text-white font-bold hover:bg-slate-800 disabled:opacity-50">
+          <span x-show="syncState !== 'loading'">התחבר</span>
+          <span x-show="syncState === 'loading'">מתחבר…</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───── Settings modal ───── -->
+  <div x-show="showSettings" x-cloak
+       class="fixed inset-0 bg-slate-900/60 grid place-items-center z-50 p-4"
+       @click.self="showSettings = false"
+       @keydown.escape.window="showSettings = false"
+       x-transition.opacity>
+    <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-5"
+         x-transition.scale.origin.center>
+      <h3 class="text-lg font-bold mb-3">הגדרות סנכרון</h3>
+      <dl class="text-sm space-y-2 mb-4">
+        <div class="flex justify-between gap-3"><dt class="text-slate-500">סטטוס</dt>
+          <dd class="font-medium flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full" :class="syncDotClass"></span>
+            <span x-text="syncStatusLabel"></span>
+          </dd></div>
+        <div class="flex justify-between gap-3"><dt class="text-slate-500">מאגר</dt><dd class="font-mono text-xs truncate" dir="ltr" x-text="gh.repo"></dd></div>
+        <div class="flex justify-between gap-3"><dt class="text-slate-500">סנכרון אחרון</dt><dd class="text-xs" x-text="lastSyncAt ? new Date(lastSyncAt).toLocaleString('he-IL') : '—'"></dd></div>
+        <div class="flex justify-between gap-3"><dt class="text-slate-500">טוקן</dt><dd class="font-mono text-xs" dir="ltr" x-text="gh.token ? '••••' + gh.token.slice(-4) : 'לא מוגדר'"></dd></div>
+      </dl>
+      <div x-show="syncError" class="text-xs text-rose-700 bg-rose-50 ring-1 ring-rose-200 p-2 rounded-lg mb-3" x-text="syncError"></div>
+      <div class="flex flex-col gap-2">
+        <button x-show="gh.token" @click="manualSync()"
+                class="min-h-11 rounded-xl bg-slate-900 text-white font-medium hover:bg-slate-800">סנכרן עכשיו</button>
+        <button x-show="!gh.token" @click="showSettings = false; showTokenSetup = true; tokenInputError = ''"
+                class="min-h-11 rounded-xl bg-slate-900 text-white font-medium hover:bg-slate-800">חיבור עם טוקן</button>
+        <button x-show="gh.token" @click="logoutToken()"
+                class="min-h-11 rounded-xl ring-1 ring-rose-200 text-rose-600 hover:bg-rose-50 font-medium">התנתקות / החלפת טוקן</button>
+        <button @click="showSettings = false"
+                class="min-h-11 rounded-xl text-slate-500 hover:bg-slate-100">סגור</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const STORAGE_KEY = 'familyFund.v1';
+    const TOKEN_KEY = 'familyFund.gh.token.v1';
 
     const COUPLES = [
       { id: 'itay_yasmin',  name: 'איתי ויסמין',   hex: '#0ea5e9', initials: 'אי' }, // soft blue
@@ -390,6 +474,20 @@
       return 't_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
     }
 
+    // UTF-8 safe base64 (Hebrew is multi-byte)
+    function b64encode(str) {
+      const bytes = new TextEncoder().encode(str);
+      let bin = '';
+      for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+      return btoa(bin);
+    }
+    function b64decode(b64) {
+      const bin = atob(b64.replace(/\s+/g, ''));
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return new TextDecoder('utf-8').decode(bytes);
+    }
+
     function app() {
       return {
         couples: COUPLES,
@@ -401,7 +499,46 @@
         showClearConfirm: false,
         clearConfirmText: '',
 
+        // ── Cloud sync state ──
+        gh: {
+          repo: 'jondebug/hotzaot_ovda_app',
+          path: 'data/transactions.json',
+          branch: 'main',
+          token: '',
+          sha: null,
+        },
+        syncState: 'unconfigured', // unconfigured | loading | saving | idle | offline | error
+        syncError: '',
+        lastSyncAt: null,
+        lastSyncedSnapshot: [],
+        showTokenSetup: false,
+        showSettings: false,
+        tokenInput: '',
+        tokenInputError: '',
+
         init() {
+          this._loadCacheLocal();
+          try {
+            const t = localStorage.getItem(TOKEN_KEY);
+            if (t) this.gh.token = t;
+          } catch (e) {}
+
+          if (!this.gh.token) {
+            this.syncState = 'unconfigured';
+            this.showTokenSetup = true;
+          } else {
+            this.loadFromCloud();
+          }
+
+          document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && this.gh.token
+                && this.syncState !== 'saving' && this.syncState !== 'loading') {
+              this.loadFromCloud();
+            }
+          });
+        },
+
+        _loadCacheLocal() {
           try {
             const raw = localStorage.getItem(STORAGE_KEY);
             if (raw) {
@@ -410,18 +547,276 @@
                 this.transactions = parsed.filter(t => t && typeof t.amount === 'number' && t.type);
               }
             }
+          } catch (e) { console.warn('Local cache load failed:', e); }
+        },
+
+        _cacheLocal() {
+          try { localStorage.setItem(STORAGE_KEY, JSON.stringify(this.transactions)); }
+          catch (e) { console.error('Local cache save failed:', e); }
+        },
+
+        // ── GitHub Contents API ──
+        ghHeaders() {
+          const h = {
+            'Accept': 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2022-11-28',
+          };
+          if (this.gh.token) h['Authorization'] = 'Bearer ' + this.gh.token;
+          return h;
+        },
+
+        async ghGet() {
+          const url = `https://api.github.com/repos/${this.gh.repo}/contents/${encodeURIComponent(this.gh.path)}?ref=${this.gh.branch}`;
+          const r = await fetch(url, { headers: this.ghHeaders(), cache: 'no-store' });
+          if (r.status === 404) return { transactions: [], sha: null };
+          if (r.status === 401 || r.status === 403) {
+            const body = await r.json().catch(() => ({}));
+            throw { code: 'auth', message: body.message || ('HTTP ' + r.status) };
+          }
+          if (!r.ok) throw new Error('GET ' + r.status);
+          const j = await r.json();
+          let txt = '[]';
+          try { txt = b64decode(j.content); } catch (e) {}
+          let data;
+          try { data = JSON.parse(txt); } catch { data = []; }
+          const list = Array.isArray(data) ? data : (Array.isArray(data && data.transactions) ? data.transactions : []);
+          return { transactions: list, sha: j.sha };
+        },
+
+        async ghPut(transactions, message, sha) {
+          const txt = JSON.stringify(transactions, null, 2) + '\n';
+          const url = `https://api.github.com/repos/${this.gh.repo}/contents/${encodeURIComponent(this.gh.path)}`;
+          const body = { message, content: b64encode(txt), branch: this.gh.branch };
+          if (sha) body.sha = sha;
+          const r = await fetch(url, {
+            method: 'PUT',
+            headers: { ...this.ghHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          if (r.status === 409 || r.status === 422) throw { code: 'conflict' };
+          if (r.status === 401 || r.status === 403) {
+            const eb = await r.json().catch(() => ({}));
+            throw { code: 'auth', message: eb.message || ('HTTP ' + r.status) };
+          }
+          if (!r.ok) {
+            const t = await r.text();
+            throw new Error('PUT ' + r.status + ': ' + t.slice(0, 200));
+          }
+          const j = await r.json();
+          return j.content.sha;
+        },
+
+        // ── Diff / merge for conflict resolution ──
+        _diff(prev, curr) {
+          const prevMap = new Map((prev || []).map(t => [t.id, t]));
+          const currMap = new Map((curr || []).map(t => [t.id, t]));
+          const upserted = [];
+          const deletedIds = [];
+          for (const [id, t] of currMap) {
+            const before = prevMap.get(id);
+            if (!before || JSON.stringify(before) !== JSON.stringify(t)) upserted.push(t);
+          }
+          for (const id of prevMap.keys()) {
+            if (!currMap.has(id)) deletedIds.push(id);
+          }
+          return { upserted, deletedIds };
+        },
+
+        _applyDiff(remote, diff) {
+          const map = new Map((remote || []).map(t => [t.id, t]));
+          for (const t of diff.upserted) map.set(t.id, t);
+          for (const id of diff.deletedIds) map.delete(id);
+          return Array.from(map.values());
+        },
+
+        // ── Sync orchestration ──
+        async loadFromCloud() {
+          if (!this.gh.token) return false;
+          this.syncState = 'loading';
+          this.syncError = '';
+          try {
+            const { transactions, sha } = await this.ghGet();
+            this.transactions = transactions;
+            this.gh.sha = sha;
+            this.lastSyncedSnapshot = JSON.parse(JSON.stringify(transactions));
+            this.lastSyncAt = new Date().toISOString();
+            this.syncState = 'idle';
+            this._cacheLocal();
+            return true;
           } catch (e) {
-            console.warn('Could not load saved data:', e);
+            if (e && e.code === 'auth') {
+              this.syncState = 'error';
+              this.syncError = 'בעיית הרשאה. ייתכן שהטוקן פג או שגוי.';
+              this.showTokenSetup = true;
+              this.tokenInputError = e.message || 'הטוקן אינו תקף.';
+            } else {
+              this.syncState = 'offline';
+              this.syncError = (e && e.message) || 'אין חיבור לרשת.';
+            }
+            return false;
           }
         },
 
-        save() {
-          try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(this.transactions));
-          } catch (e) {
-            console.error('Save failed:', e);
-            alert('השמירה נכשלה — ייתכן שאחסון הדפדפן מלא.');
+        async syncSave(message) {
+          this._cacheLocal();
+          if (!this.gh.token) return;
+          this.syncState = 'saving';
+          this.syncError = '';
+          for (let attempt = 0; attempt < 4; attempt++) {
+            try {
+              const newSha = await this.ghPut(this.transactions, message, this.gh.sha);
+              this.gh.sha = newSha;
+              this.lastSyncedSnapshot = JSON.parse(JSON.stringify(this.transactions));
+              this.lastSyncAt = new Date().toISOString();
+              this.syncState = 'idle';
+              this._cacheLocal();
+              return;
+            } catch (e) {
+              if (e && e.code === 'conflict' && attempt < 3) {
+                try {
+                  const remote = await this.ghGet();
+                  const diff = this._diff(this.lastSyncedSnapshot, this.transactions);
+                  const merged = this._applyDiff(remote.transactions, diff);
+                  this.transactions = merged;
+                  this.gh.sha = remote.sha;
+                  this.lastSyncedSnapshot = JSON.parse(JSON.stringify(remote.transactions));
+                  this._cacheLocal();
+                  continue;
+                } catch (innerE) {
+                  this.syncState = 'error';
+                  this.syncError = (innerE && innerE.message) || 'שגיאת מיזוג בענן.';
+                  return;
+                }
+              }
+              if (e && e.code === 'auth') {
+                this.syncState = 'error';
+                this.syncError = 'הטוקן אינו תקף או חסרות לו הרשאות.';
+                this.showTokenSetup = true;
+                return;
+              }
+              this.syncState = 'offline';
+              this.syncError = (e && e.message) || 'אין חיבור לרשת. השינוי נשמר רק מקומית.';
+              return;
+            }
           }
+          this.syncState = 'error';
+          this.syncError = 'נכשל לאחר מספר ניסיונות. נסו שוב.';
+        },
+
+        async manualSync() {
+          if (!this.gh.token) {
+            this.showTokenSetup = true;
+            return;
+          }
+          await this.loadFromCloud();
+        },
+
+        // ── Token setup / management ──
+        async submitTokenSetup() {
+          const t = (this.tokenInput || '').trim();
+          this.tokenInputError = '';
+          if (!t) { this.tokenInputError = 'יש להזין טוקן.'; return; }
+          this.gh.token = t;
+          this.syncState = 'loading';
+          try {
+            const { transactions, sha } = await this.ghGet();
+            try { localStorage.setItem(TOKEN_KEY, t); } catch (e) {}
+            const localCount = this.transactions.length;
+            const remoteCount = transactions.length;
+            if (localCount === 0 || remoteCount > 0) {
+              this.transactions = transactions;
+              this.lastSyncedSnapshot = JSON.parse(JSON.stringify(transactions));
+              this.gh.sha = sha;
+              if (remoteCount === 0 && localCount > 0) {
+                // shouldn't reach (covered below)
+              }
+            }
+            if (localCount > 0 && remoteCount === 0) {
+              const localCopy = JSON.parse(JSON.stringify(this.transactions));
+              this.transactions = localCopy;
+              this.lastSyncedSnapshot = [];
+              this.gh.sha = sha;
+              await this.syncSave('Seed transactions from local cache');
+            } else if (localCount > 0 && remoteCount > 0) {
+              const localCopy = JSON.parse(JSON.stringify(this.transactions));
+              const merged = this._applyDiff(transactions, this._diff([], localCopy));
+              if (merged.length !== remoteCount) {
+                this.transactions = merged;
+                this.lastSyncedSnapshot = JSON.parse(JSON.stringify(transactions));
+                this.gh.sha = sha;
+                await this.syncSave('Merge local cache with cloud');
+              }
+            }
+            this.lastSyncAt = new Date().toISOString();
+            this.syncState = 'idle';
+            this.showTokenSetup = false;
+            this.tokenInput = '';
+            this._cacheLocal();
+          } catch (e) {
+            this.gh.token = '';
+            this.syncState = 'unconfigured';
+            if (e && e.code === 'auth') {
+              this.tokenInputError = 'הטוקן אינו תקף. ודאו שיש לו הרשאת Contents: Read and write על המאגר.';
+            } else {
+              this.tokenInputError = (e && e.message) || 'שגיאה בחיבור.';
+            }
+          }
+        },
+
+        skipTokenSetup() {
+          this.showTokenSetup = false;
+          this.tokenInput = '';
+          this.tokenInputError = '';
+          if (!this.gh.token) this.syncState = 'unconfigured';
+        },
+
+        logoutToken() {
+          if (!confirm('להתנתק? הנתונים בענן יישארו ללא שינוי. הטוקן יימחק מהמכשיר ויהיה צורך להזין אותו שוב לסנכרון.')) return;
+          this.gh.token = '';
+          this.gh.sha = null;
+          try { localStorage.removeItem(TOKEN_KEY); } catch (e) {}
+          this.showSettings = false;
+          this.syncState = 'unconfigured';
+          this.syncError = '';
+        },
+
+        // ── Sync status presentation ──
+        get syncStatusLabel() {
+          switch (this.syncState) {
+            case 'loading': return 'טוען…';
+            case 'saving': return 'שומר…';
+            case 'idle': return 'מסונכרן';
+            case 'offline': return 'לא מקוון';
+            case 'error': return 'שגיאה';
+            case 'unconfigured': return 'מקומי';
+            default: return '';
+          }
+        },
+        get syncBadgeClass() {
+          switch (this.syncState) {
+            case 'idle': return 'ring-emerald-200 text-emerald-700 hover:bg-emerald-50';
+            case 'loading':
+            case 'saving': return 'ring-sky-200 text-sky-700 hover:bg-sky-50';
+            case 'offline': return 'ring-amber-200 text-amber-700 hover:bg-amber-50';
+            case 'error': return 'ring-rose-200 text-rose-700 hover:bg-rose-50';
+            default: return 'ring-slate-200 text-slate-500 hover:bg-slate-50';
+          }
+        },
+        get syncDotClass() {
+          switch (this.syncState) {
+            case 'idle': return 'bg-emerald-500';
+            case 'loading':
+            case 'saving': return 'bg-sky-500 animate-pulse';
+            case 'offline': return 'bg-amber-500';
+            case 'error': return 'bg-rose-500';
+            default: return 'bg-slate-400';
+          }
+        },
+        get syncTitle() {
+          if (this.syncError) return this.syncError;
+          if (this.syncState === 'unconfigured') return 'לחצו לחיבור סנכרון';
+          if (this.lastSyncAt) return 'סנכרון אחרון: ' + new Date(this.lastSyncAt).toLocaleString('he-IL');
+          return this.syncStatusLabel;
         },
 
         formatMoney(n) {
@@ -544,6 +939,7 @@
             base.couple = this.form.couple;
           }
 
+          const wasEditing = !!this.editingId;
           if (this.editingId) {
             this.transactions = this.transactions.map(t =>
               t.id === this.editingId ? { ...t, ...base } : t
@@ -558,7 +954,9 @@
           }
           this.form = emptyForm();
           this.errors = {};
-          this.save();
+          const tag = base.type === 'income' ? 'income' : base.type === 'expense' ? 'expense' : 'transfer';
+          const desc = base.description ? ': ' + base.description : '';
+          this.syncSave((wasEditing ? 'Edit' : 'Add') + ' ' + tag + desc);
         },
 
         startEdit(t) {
@@ -586,9 +984,11 @@
 
         deleteTransaction(id) {
           if (!confirm('למחוק את התנועה הזו? פעולה זו תעדכן את כל המאזנים.')) return;
+          const tx = this.transactions.find(t => t.id === id);
           this.transactions = this.transactions.filter(t => t.id !== id);
           if (this.editingId === id) this.cancelEdit();
-          this.save();
+          const label = tx?.description ? ': ' + tx.description : '';
+          this.syncSave('Delete transaction' + label);
         },
 
         exportJSON() {
@@ -622,7 +1022,7 @@
               const cleaned = arr.filter(t => t && typeof t.amount === 'number' && t.type);
               if (!confirm(`לייבא ${cleaned.length} תנועות? פעולה זו תחליף את כל הנתונים הקיימים.`)) return;
               this.transactions = cleaned;
-              this.save();
+              this.syncSave('Import ' + cleaned.length + ' transactions');
               alert('הייבוא הושלם בהצלחה.');
             } catch (e) {
               alert('הקובץ אינו תקין.');
@@ -640,6 +1040,7 @@
           this.showClearConfirm = false;
           this.clearConfirmText = '';
           this.cancelEdit();
+          if (this.gh.token) this.syncSave('Clear all transactions');
         },
       };
     }
