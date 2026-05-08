@@ -405,6 +405,24 @@
       return 't_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
     }
 
+    // Firebase refs live OUTSIDE Alpine state — Alpine wraps `this` in a reactive
+    // Proxy, and that breaks Firebase's internal property access on its ref objects.
+    let _firebaseApp = null;
+    let _txRef = null;
+    let _connectedRef = null;
+    let _firebaseError = null;
+
+    try {
+      _firebaseApp = firebase.initializeApp(FIREBASE_CONFIG);
+      const _db = firebase.database();
+      _txRef = _db.ref('transactions');
+      _connectedRef = _db.ref('.info/connected');
+      console.log('[ovda] Firebase initialized OK');
+    } catch (e) {
+      console.error('[ovda] Firebase init failed:', e);
+      _firebaseError = e;
+    }
+
     function app() {
       return {
         couples: COUPLES,
@@ -420,54 +438,50 @@
         syncState: 'loading',  // loading | idle | saving | offline
         syncError: '',
         lastSyncAt: null,
-        _txRef: null,
-        _saveQueue: 0,
+        saveQueue: 0,
 
         init() {
-          // Show cached data immediately so the page isn't blank if Firebase is slow
+          // Paint cached data immediately so the page isn't blank if Firebase is slow.
           this._loadCacheLocal();
 
-          try {
-            firebase.initializeApp(FIREBASE_CONFIG);
-            const db = firebase.database();
-            this._txRef = db.ref('transactions');
-
-            // Real-time listener — fires once on subscribe with the current value,
-            // and again on every server-side change.
-            this._txRef.on('value',
-              (snap) => {
-                const obj = snap.val() || {};
-                this.transactions = Object.entries(obj).map(([id, t]) => ({ id, ...t }));
-                this._cacheLocal();
-                this.lastSyncAt = new Date().toISOString();
-                if (this._saveQueue === 0) {
-                  this.syncState = 'idle';
-                  this.syncError = '';
-                }
-              },
-              (err) => {
-                console.error('Firebase listener error:', err);
-                this.syncState = 'offline';
-                this.syncError = err && err.message ? err.message : 'אין חיבור לרשת.';
-              }
-            );
-
-            // Connection-state heartbeat — flips the badge when the device drops offline.
-            db.ref('.info/connected').on('value', (snap) => {
-              if (snap.val() === false) {
-                if (this._saveQueue === 0) this.syncState = 'offline';
-              } else {
-                if (this._saveQueue === 0) {
-                  this.syncState = 'idle';
-                  this.syncError = '';
-                }
-              }
-            });
-          } catch (e) {
-            console.error('Firebase init failed:', e);
+          if (!_txRef) {
             this.syncState = 'offline';
-            this.syncError = (e && e.message) || 'שגיאת אתחול.';
+            this.syncError = (_firebaseError && _firebaseError.message) || 'שגיאת אתחול.';
+            return;
           }
+
+          // Real-time listener — fires once on subscribe with the current value,
+          // and again on every server-side change.
+          _txRef.on('value',
+            (snap) => {
+              const obj = snap.val() || {};
+              this.transactions = Object.entries(obj).map(([id, t]) => ({ id, ...t }));
+              this._cacheLocal();
+              this.lastSyncAt = new Date().toISOString();
+              if (this.saveQueue === 0) {
+                this.syncState = 'idle';
+                this.syncError = '';
+              }
+              console.log('[ovda] Firebase value update — ' + this.transactions.length + ' entries');
+            },
+            (err) => {
+              console.error('[ovda] Firebase listener error:', err);
+              this.syncState = 'offline';
+              this.syncError = err && err.message ? err.message : 'אין חיבור לרשת.';
+            }
+          );
+
+          // Connection-state heartbeat — flips the badge when the device drops offline.
+          _connectedRef.on('value', (snap) => {
+            if (snap.val() === false) {
+              if (this.saveQueue === 0) this.syncState = 'offline';
+            } else {
+              if (this.saveQueue === 0) {
+                this.syncState = 'idle';
+                this.syncError = '';
+              }
+            }
+          });
         },
 
         _loadCacheLocal() {
@@ -619,22 +633,26 @@
         },
 
         async _writeTx(id, value) {
-          if (!this._txRef) {
+          if (!_txRef) {
             this.syncError = 'אין חיבור למסד הנתונים.';
             this.syncState = 'offline';
+            console.error('[ovda] _writeTx: no _txRef');
             return;
           }
-          this._saveQueue++;
+          this.saveQueue++;
           this.syncState = 'saving';
           this.syncError = '';
+          console.log('[ovda] writing transaction', id, value);
           try {
-            await this._txRef.child(id).set(value);
+            await _txRef.child(id).set(value);
+            console.log('[ovda] write succeeded', id);
           } catch (e) {
-            console.error('Firebase write failed:', e);
+            console.error('[ovda] Firebase write failed:', e);
             this.syncError = (e && e.message) || 'השמירה נכשלה.';
+            alert('שגיאה: ' + this.syncError);
           } finally {
-            this._saveQueue--;
-            if (this._saveQueue === 0) {
+            this.saveQueue--;
+            if (this.saveQueue === 0) {
               this.syncState = this.syncError ? 'offline' : 'idle';
             }
           }
@@ -666,18 +684,19 @@
         async deleteTransaction(id) {
           if (!confirm('למחוק את התנועה הזו? פעולה זו תעדכן את כל המאזנים אצל כל בני המשפחה.')) return;
           if (this.editingId === id) this.cancelEdit();
-          if (!this._txRef) return;
-          this._saveQueue++;
+          if (!_txRef) return;
+          this.saveQueue++;
           this.syncState = 'saving';
           this.syncError = '';
           try {
-            await this._txRef.child(id).remove();
+            await _txRef.child(id).remove();
           } catch (e) {
-            console.error('Firebase delete failed:', e);
+            console.error('[ovda] Firebase delete failed:', e);
             this.syncError = (e && e.message) || 'המחיקה נכשלה.';
+            alert('שגיאה: ' + this.syncError);
           } finally {
-            this._saveQueue--;
-            if (this._saveQueue === 0) {
+            this.saveQueue--;
+            if (this.saveQueue === 0) {
               this.syncState = this.syncError ? 'offline' : 'idle';
             }
           }
@@ -722,15 +741,15 @@
                 const { id: _ignore, ...rest } = t;
                 map[id] = rest;
               }
-              if (!this._txRef) { alert('אין חיבור למסד הנתונים.'); return; }
-              this._saveQueue++;
+              if (!_txRef) { alert('אין חיבור למסד הנתונים.'); return; }
+              this.saveQueue++;
               this.syncState = 'saving';
               try {
-                await this._txRef.set(map);
+                await _txRef.set(map);
                 alert('הייבוא הושלם בהצלחה.');
               } finally {
-                this._saveQueue--;
-                if (this._saveQueue === 0) this.syncState = 'idle';
+                this.saveQueue--;
+                if (this.saveQueue === 0) this.syncState = 'idle';
               }
             } catch (e) {
               alert('הקובץ אינו תקין.');
@@ -746,17 +765,17 @@
           this.showClearConfirm = false;
           this.clearConfirmText = '';
           this.cancelEdit();
-          if (!this._txRef) return;
-          this._saveQueue++;
+          if (!_txRef) return;
+          this.saveQueue++;
           this.syncState = 'saving';
           try {
-            await this._txRef.remove();
+            await _txRef.remove();
           } catch (e) {
-            console.error('Firebase clear failed:', e);
+            console.error('[ovda] Firebase clear failed:', e);
             this.syncError = (e && e.message) || 'המחיקה נכשלה.';
           } finally {
-            this._saveQueue--;
-            if (this._saveQueue === 0) {
+            this.saveQueue--;
+            if (this.saveQueue === 0) {
               this.syncState = this.syncError ? 'offline' : 'idle';
             }
           }
