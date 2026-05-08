@@ -7,5 +7,14 @@
     "date": "2026-05-08",
     "couple": "itay_yasmin",
     "createdAt": "2026-05-08T21:30:00Z"
+  },
+  {
+    "id": "test-tx-2",
+    "type": "expense",
+    "amount": 600,
+    "description": "קניות",
+    "date": "2026-05-08",
+    "couple": "nir_ofri",
+    "createdAt": "2026-05-08T21:31:00Z"
   }
 ]
