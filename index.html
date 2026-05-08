@@ -430,6 +430,11 @@
       <div class="flex flex-col gap-2">
         <button x-show="gh.token" @click="manualSync()"
                 class="min-h-11 rounded-xl bg-slate-900 text-white font-medium hover:bg-slate-800">סנכרן עכשיו</button>
+        <button x-show="gh.token" @click="copyShareLink()"
+                class="min-h-11 rounded-xl ring-1 ring-sky-200 text-sky-700 hover:bg-sky-50 font-medium">העתק קישור התקנה למשפחה</button>
+        <p x-show="gh.token" class="text-[11px] text-slate-500 leading-snug -mt-1">
+          הקישור כולל את הטוקן בתוך ה‑hash של ה‑URL. שתפו רק בערוץ פרטי. כשאדם פותח את הקישור, הטוקן נשמר אוטומטית במכשיר שלו והקישור מתנקה.
+        </p>
         <button x-show="!gh.token" @click="showSettings = false; showTokenSetup = true; tokenInputError = ''"
                 class="min-h-11 rounded-xl bg-slate-900 text-white font-medium hover:bg-slate-800">חיבור עם טוקן</button>
         <button x-show="gh.token" @click="logoutToken()"
@@ -517,6 +522,21 @@
         tokenInputError: '',
 
         init() {
+          // One-tap install link: ".../#k=<token>" auto-saves the token then strips the hash.
+          // The hash never reaches the server, so it stays out of CDN/Pages logs.
+          let installedFromHash = false;
+          if (location.hash) {
+            try {
+              const params = new URLSearchParams(location.hash.replace(/^#/, ''));
+              const t = (params.get('k') || '').trim();
+              if (t) {
+                localStorage.setItem(TOKEN_KEY, t);
+                history.replaceState(null, '', location.pathname + location.search);
+                installedFromHash = true;
+              }
+            } catch (e) {}
+          }
+
           this._loadCacheLocal();
           try {
             const t = localStorage.getItem(TOKEN_KEY);
@@ -709,6 +729,19 @@
             return;
           }
           await this.loadFromCloud();
+        },
+
+        // ── Share-link generator: copies a one-tap install URL to the clipboard ──
+        async copyShareLink() {
+          if (!this.gh.token) { alert('יש להתחבר עם טוקן לפני יצירת קישור.'); return; }
+          const url = location.origin + location.pathname + '#k=' + this.gh.token;
+          try {
+            await navigator.clipboard.writeText(url);
+            alert('הקישור הועתק. שתפו אותו רק בערוץ פרטי — מי שיש לו את הקישור יקבל גישה מלאה.');
+          } catch (e) {
+            // Fallback: show the URL so the user can copy manually
+            window.prompt('העתיקו את הקישור:', url);
+          }
         },
 
         // ── Token setup / management ──
